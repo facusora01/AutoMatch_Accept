@@ -3,11 +3,12 @@ import os
 import cv2
 import numpy as np
 import time
-import keyboard
+import keyboard  # Reemplazamos ctypes por keyboard
 
+timeSleep = 10
 running = False
 
-def stop_program(e):
+def stop_program():
     global running
     running = False
     print("\nStopping...")
@@ -24,7 +25,8 @@ def GetImagePaths():
 def Capture():
     return pyautogui.screenshot()
 
-def SearchImage(Screenshot, Image, confidence=0.7):
+def SearchImage(Screenshot, Image, confidence=0.85):
+    # (El código de tu función SearchImage queda exactamente igual, no necesita cambios)
     try:
         screenshot_np = np.array(Screenshot)
         screenshot_rgb = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
@@ -41,9 +43,7 @@ def SearchImage(Screenshot, Image, confidence=0.7):
         if is_flat_color:
             avg_color = np.mean(template_color, axis=(0, 1))
             tolerance = 15
-            
             mask = cv2.inRange(screenshot_rgb, avg_color - tolerance, avg_color + tolerance)
-            
             num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
             
             min_area = (template_color.shape[0] * template_color.shape[1]) * 0.5
@@ -54,7 +54,6 @@ def SearchImage(Screenshot, Image, confidence=0.7):
                 if area < 25:
                     continue
                 if min_area <= area <= max_area:
-
                     width = stats[i, cv2.CC_STAT_WIDTH]
                     height = stats[i, cv2.CC_STAT_HEIGHT]
                     if width > 0 and height > 0:
@@ -68,10 +67,8 @@ def SearchImage(Screenshot, Image, confidence=0.7):
         
         for scale in np.linspace(0.5, 1.5, 20):
             scaled_template = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-            
             if scaled_template.shape[0] < 20 or scaled_template.shape[1] < 20:
                 continue
-            
             if scaled_template.shape[0] > screen_h or scaled_template.shape[1] > screen_w:
                 continue
             
@@ -85,7 +82,6 @@ def SearchImage(Screenshot, Image, confidence=0.7):
                 
                 if center_x < 20 or center_y < 20 or center_x > screen_w - 20 or center_y > screen_h - 20:
                     continue
-                
                 return pyautogui.Point(x=center_x, y=center_y)
     except Exception:
         pass
@@ -95,30 +91,39 @@ def AcceptGame():
     global running
     running = True
 
-    keyboard.on_press_key("`", stop_program)
-    
+    # Registramos los atajos globales para detener el programa asíncronamente
+    keyboard.add_hotkey('esc', stop_program)
+    keyboard.add_hotkey('`', stop_program)
+
     ImagePaths = GetImagePaths()
-    print(f"Loaded {len(ImagePaths)} images to search")
     print("Searching for Accept button...")
-    print("Press ` (backtick) to stop\n")
+    print("Press ` (backtick) or ESC to stop\n")
     
     while running:
         Screenshot = Capture()
+        
         for Image in ImagePaths:
-            if not running:
+            if not running: # Se rompe el ciclo si presionaste ESC durante la ejecución
                 break
+                
             AcceptButton = SearchImage(Screenshot, Image)
+            
             if AcceptButton:
                 print(f"Found Accept button at {AcceptButton}")
                 pyautogui.click(AcceptButton)
-                print("Game Accepted, waiting 3 seconds before searching again...")
-                time.sleep(3)
+                print(f"Game Accepted, waiting {timeSleep} seconds before searching again...")
+                
+                # En lugar de un sleep absoluto de 10 segundos, hacemos chequeos de 1 segundo
+                # Esto permite que el programa se cierre instantáneamente si presionas ESC mientras espera
+                for _ in range(timeSleep):
+                    if not running:
+                        break
+                    time.sleep(1)
                 break
-    
-    keyboard.unhook_all()
 
 def main():
     AcceptGame()
     return 0
 
-main()
+if __name__ == '__main__':
+    main()
