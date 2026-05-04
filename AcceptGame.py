@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 import time
-import keyboard  # Reemplazamos ctypes por keyboard
+import keyboard
 
 timeSleep = 10
 running = False
@@ -11,22 +11,18 @@ running = False
 def stop_program():
     global running
     running = False
-    print("\nStopping...")
+    print("\nDeteniendo...")
 
-def GetImagePaths():
-    ImagePaths = []
+def get_image_path(filename):
+    """Obtiene la ruta de una imagen específica en lugar de todas."""
     currentDirectory = os.path.dirname(os.path.abspath(__file__))
-    imageDirectory = os.path.join(currentDirectory, "Images")
-    for Image in os.listdir(imageDirectory):
-        if Image.endswith(".png"):
-            ImagePaths.append(os.path.join(imageDirectory, Image))
-    return ImagePaths
+    return os.path.join(currentDirectory, "Images", filename)
 
 def Capture():
     return pyautogui.screenshot()
 
 def SearchImage(Screenshot, Image, confidence=0.85):
-    # (El código de tu función SearchImage queda exactamente igual, no necesita cambios)
+    # El código de tu función SearchImage queda exactamente igual
     try:
         screenshot_np = np.array(Screenshot)
         screenshot_rgb = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
@@ -87,7 +83,26 @@ def SearchImage(Screenshot, Image, confidence=0.85):
         pass
     return None
 
-def AcceptGame():
+def Menu():
+    """Muestra un menú para elegir qué juego buscar."""
+    print("=== Auto Accept Game ===")
+    print("1. Counter-Strike 2 (CS2)")
+    print("2. League of Legends (LoL)")
+    print("0. Salir")
+    print("========================")
+    
+    while True:
+        opcion = input("Elige una opción (1, 2 o 0): ")
+        if opcion == '1':
+            return "cs2.png"
+        elif opcion == '2':
+            return "lol.png"
+        elif opcion == '0':
+            return None
+        else:
+            print("Opción inválida. Por favor ingresa 1, 2 o 0.")
+
+def AcceptGame(image_filename):
     global running
     running = True
 
@@ -95,34 +110,42 @@ def AcceptGame():
     keyboard.add_hotkey('esc', stop_program)
     keyboard.add_hotkey('`', stop_program)
 
-    ImagePaths = GetImagePaths()
-    print("Searching for Accept button...")
-    print("Press ` (backtick) or ESC to stop\n")
+    image_path = get_image_path(image_filename)
+    
+    # Validamos que la imagen exista antes de arrancar
+    if not os.path.exists(image_path):
+        print(f"\n[ERROR] No se encontró la imagen '{image_filename}' en la carpeta Images.")
+        print("Asegúrate de que el archivo exista y tenga ese nombre exacto.")
+        return
+
+    print(f"\nBuscando el botón de aceptar ({image_filename})...")
+    print("Presiona ` (backtick) o ESC para detener\n")
     
     while running:
         Screenshot = Capture()
         
-        for Image in ImagePaths:
-            if not running: # Se rompe el ciclo si presionaste ESC durante la ejecución
-                break
-                
-            AcceptButton = SearchImage(Screenshot, Image)
+        if not running:
+            break
             
-            if AcceptButton:
-                print(f"Found Accept button at {AcceptButton}")
-                pyautogui.click(AcceptButton)
-                print(f"Game Accepted, waiting {timeSleep} seconds before searching again...")
-                
-                # En lugar de un sleep absoluto de 10 segundos, hacemos chequeos de 1 segundo
-                # Esto permite que el programa se cierre instantáneamente si presionas ESC mientras espera
-                for _ in range(timeSleep):
-                    if not running:
-                        break
-                    time.sleep(1)
-                break
+        AcceptButton = SearchImage(Screenshot, image_path)
+        
+        if AcceptButton:
+            print(f"Botón encontrado en {AcceptButton}")
+            pyautogui.click(AcceptButton)
+            print(f"Partida Aceptada, esperando {timeSleep} segundos antes de buscar de nuevo...")
+            
+            for _ in range(timeSleep):
+                if not running:
+                    break
+                time.sleep(1)
+            # break # Descomenta este break si quieres que el programa se cierre después de aceptar 1 sola vez
 
 def main():
-    AcceptGame()
+    selected_image = Menu()
+    if selected_image:
+        AcceptGame(selected_image)
+    else:
+        print("Saliendo del programa...")
     return 0
 
 if __name__ == '__main__':
