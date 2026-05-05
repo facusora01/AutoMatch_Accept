@@ -5,7 +5,7 @@ import numpy as np
 import time
 import keyboard
 
-timeSleep = 10
+timeSleep = 5
 running = False
 
 def stop_program():
@@ -21,67 +21,87 @@ def get_image_path(filename):
 def Capture():
     return pyautogui.screenshot()
 
-def SearchImage(Screenshot, Image, confidence=0.85):
-    # El código de tu función SearchImage queda exactamente igual
+def SearchImage(Screenshot, image_path, confidence=0.85):
     try:
         screenshot_np = np.array(Screenshot)
-        screenshot_rgb = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
-        screen_h, screen_w = screenshot_rgb.shape[:2]
+        screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
+        screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
+        screen_h, screen_w = screenshot_bgr.shape[:2]
         
-        template_gray = cv2.imread(Image, cv2.IMREAD_GRAYSCALE)
-        template_color = cv2.imread(Image, cv2.IMREAD_COLOR)
-        if template_gray is None or template_color is None:
+        template_color = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        template_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        
+        if template_color is None:
             return None
         
-        flat_threshold = 15
-        is_flat_color = np.std(template_gray) < flat_threshold
+        image_name = os.path.basename(image_path).upper()
         
-        if is_flat_color:
+        # --- MODO COLOR (Para CS2) ---
+        if "CS2" in image_name:
             avg_color = np.mean(template_color, axis=(0, 1))
-            tolerance = 15
-            mask = cv2.inRange(screenshot_rgb, avg_color - tolerance, avg_color + tolerance)
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+            tolerance = 20
+            lower_bound = np.clip(avg_color - tolerance, 0, 255).astype(np.uint8)
+            upper_bound = np.clip(avg_color + tolerance, 0, 255).astype(np.uint8)
+            mask = cv2.inRange(screenshot_bgr, lower_bound, upper_bound)
             
-            min_area = (template_color.shape[0] * template_color.shape[1]) * 0.5
-            max_area = (template_color.shape[0] * template_color.shape[1]) * 2.0
+            kernel_close = np.ones((5, 5), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close)
+            
+            kernel_erode = np.ones((15, 15), np.uint8)
+            mask_eroded = cv2.erode(mask, kernel_erode, iterations=1)
+            
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_eroded, connectivity=8)
             
             for i in range(1, num_labels):
                 area = stats[i, cv2.CC_STAT_AREA]
-                if area < 25:
-                    continue
-                if min_area <= area <= max_area:
-                    width = stats[i, cv2.CC_STAT_WIDTH]
-                    height = stats[i, cv2.CC_STAT_HEIGHT]
-                    if width > 0 and height > 0:
-                        ratio = width / height
-                        if ratio < 0.7 or ratio > 1.4:
-                            continue
+                if area > 0:
                     cx, cy = int(centroids[i][0]), int(centroids[i][1])
-                    if cx >= 20 and cy >= 20 and cx <= screen_w - 20 and cy <= screen_h - 20:
+                    if 20 <= cx <= screen_w - 20 and 20 <= cy <= screen_h - 20:
                         return pyautogui.Point(x=cx, y=cy)
             return None
-        
-        for scale in np.linspace(0.5, 1.5, 20):
-            scaled_template = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-            if scaled_template.shape[0] < 20 or scaled_template.shape[1] < 20:
-                continue
-            if scaled_template.shape[0] > screen_h or scaled_template.shape[1] > screen_w:
-                continue
             
-            result = cv2.matchTemplate(cv2.cvtColor(screenshot_rgb, cv2.COLOR_BGR2GRAY), scaled_template, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        # --- MODO MATCHING MULTIESCALA (Para LoL) ---
+        else:
+            h, w = template_gray.shape
+            best_match = None
             
-            if max_val >= confidence:
-                h, w = scaled_template.shape
-                center_x = max_loc[0] + w // 2
-                center_y = max_loc[1] + h // 2
+            # Escalado dinámico de 60% a 150% con 10 tamaños (saltos de 10%)
+            for scale in np.linspace(0.6, 1.5, 10):
+                resized_w = int(w * scale)
+                resized_h = int(h * scale)
                 
-                if center_x < 20 or center_y < 20 or center_x > screen_w - 20 or center_y > screen_h - 20:
+                # Evita crasheos si el escalado hace que el template sea más grande que la pantalla
+                if resized_h > screen_h or resized_w > screen_w:
                     continue
+                    
+                # Redimensionamos el template
+                resized_template = cv2.resize(template_gray, (resized_w, resized_h))
+                
+                # Buscamos esta nueva versión en la pantalla
+                result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(result)
+                
+                # Nos guardamos el que tenga la mejor coincidencia
+                if best_match is None or max_val > best_match['val']:
+                    best_match = {
+                        'val': max_val,
+                        'loc': max_loc,
+                        'w': resized_w,
+                        'h': resized_h
+                    }
+            
+            # Si el mejor resultado superó nuestro límite de confianza
+            if best_match and best_match['val'] >= confidence:
+                # Calculamos el centro usando las dimensiones de la escala que funcionó
+                center_x = best_match['loc'][0] + best_match['w'] // 2
+                center_y = best_match['loc'][1] + best_match['h'] // 2
                 return pyautogui.Point(x=center_x, y=center_y)
-    except Exception:
-        pass
-    return None
+                
+            return None
+            
+    except Exception as e:
+        print(f"Error en SearchImage: {e}")
+        return None
 
 def Menu():
     """Muestra un menú para elegir qué juego buscar."""
@@ -94,9 +114,9 @@ def Menu():
     while True:
         opcion = input("Elige una opción (1, 2 o 0): ")
         if opcion == '1':
-            return "cs2.png"
+            return "CS2/CS2.png"
         elif opcion == '2':
-            return "lol.png"
+            return "LoL/LoL.png"
         elif opcion == '0':
             return None
         else:
@@ -106,20 +126,18 @@ def AcceptGame(image_filename):
     global running
     running = True
 
-    # Registramos los atajos globales para detener el programa asíncronamente
     keyboard.add_hotkey('esc', stop_program)
-    keyboard.add_hotkey('`', stop_program)
 
     image_path = get_image_path(image_filename)
     
-    # Validamos que la imagen exista antes de arrancar
     if not os.path.exists(image_path):
-        print(f"\n[ERROR] No se encontró la imagen '{image_filename}' en la carpeta Images.")
-        print("Asegúrate de que el archivo exista y tenga ese nombre exacto.")
+        print(f"\n[ERROR] No se encontró la imagen '{image_path}'")
         return
 
-    print(f"\nBuscando el botón de aceptar ({image_filename})...")
-    print("Presiona ` (backtick) o ESC para detener\n")
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    
+    print(f"\nBuscando referencia para {image_name}...")
+    print("Presiona ESC para detener\n")
     
     while running:
         Screenshot = Capture()
@@ -130,16 +148,29 @@ def AcceptGame(image_filename):
         AcceptButton = SearchImage(Screenshot, image_path)
         
         if AcceptButton:
-            print(f"Botón encontrado en {AcceptButton}")
-            pyautogui.click(AcceptButton)
+            click_x = AcceptButton.x
+            click_y = AcceptButton.y
+            
+
+            if image_name.upper() == "LOL":
+
+                offset_x = 80  
+                offset_y = 0
+                
+                click_x += offset_x
+                click_y += offset_y
+                print(f"Recorte de LoL encontrado. Moviendo el click a la zona roja: X={click_x}, Y={click_y}")
+            else:
+                print(f"Botón encontrado en X={click_x}, Y={click_y}")
+            
+            pyautogui.click(x=click_x, y=click_y)
             print(f"Partida Aceptada, esperando {timeSleep} segundos antes de buscar de nuevo...")
             
             for _ in range(timeSleep):
                 if not running:
                     break
                 time.sleep(1)
-            # break # Descomenta este break si quieres que el programa se cierre después de aceptar 1 sola vez
-
+                
 def main():
     selected_image = Menu()
     if selected_image:
