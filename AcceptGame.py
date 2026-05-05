@@ -11,7 +11,6 @@ from pathlib import Path
 APP_NAME = "AutoMatch_Accept"
 
 def get_config_path():
-    """Crea y devuelve la ruta en AppData/Local/AutoMatch_Accept/config.json"""
     local_app_data = os.getenv('LOCALAPPDATA')
     config_dir = Path(local_app_data) / APP_NAME
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -33,8 +32,8 @@ def save_config(time_value):
     try:
         with open(CONFIG_FILE, "w") as f:
             json.dump({"timeSleep": time_value}, f)
-    except Exception as e:
-        print(f"Error guardando en AppData: {e}")
+    except Exception:
+        pass
 
 timeSleep = load_config()
 running = False
@@ -44,7 +43,6 @@ def stop_program():
     os._exit(0)
 
 def get_image_path(filename):
-    """Obtiene la ruta de la imagen, ya sea en desarrollo o incrustada en el .exe"""
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
@@ -58,73 +56,44 @@ def Capture():
 def SearchImage(Screenshot, image_path, confidence=0.85):
     try:
         screenshot_np = np.array(Screenshot)
-        screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
         screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
-        screen_h, screen_w = screenshot_bgr.shape[:2]
+        screen_h, screen_w = screenshot_gray.shape[:2]
         
-        template_color = cv2.imread(image_path, cv2.IMREAD_COLOR)
         template_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         
-        if template_color is None:
+        if template_gray is None:
             return None
         
-        image_name = os.path.basename(image_path).upper()
+        h, w = template_gray.shape
+        best_match = None
         
-        if "CS2" in image_name:
-            avg_color = np.mean(template_color, axis=(0, 1))
-            tolerance = 20
-            lower_bound = np.clip(avg_color - tolerance, 0, 255).astype(np.uint8)
-            upper_bound = np.clip(avg_color + tolerance, 0, 255).astype(np.uint8)
-            mask = cv2.inRange(screenshot_bgr, lower_bound, upper_bound)
+        for scale in np.linspace(0.8, 1.2, 9):
+            resized_w = int(w * scale)
+            resized_h = int(h * scale)
             
-            kernel_close = np.ones((5, 5), np.uint8)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close)
-            
-            kernel_erode = np.ones((15, 15), np.uint8)
-            mask_eroded = cv2.erode(mask, kernel_erode, iterations=1)
-            
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask_eroded, connectivity=8)
-            
-            for i in range(1, num_labels):
-                area = stats[i, cv2.CC_STAT_AREA]
-                if area > 0:
-                    cx, cy = int(centroids[i][0]), int(centroids[i][1])
-                    if 20 <= cx <= screen_w - 20 and 20 <= cy <= screen_h - 20:
-                        return pyautogui.Point(x=cx, y=cy)
-            return None
-            
-        else:
-            h, w = template_gray.shape
-            best_match = None
-            
-            for scale in np.linspace(0.8, 1.2, 9):
-                resized_w = int(w * scale)
-                resized_h = int(h * scale)
+            if resized_h > screen_h or resized_w > screen_w:
+                continue
                 
-                if resized_h > screen_h or resized_w > screen_w:
-                    continue
-                    
-                resized_template = cv2.resize(template_gray, (resized_w, resized_h))
-                result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(result)
-                
-                if best_match is None or max_val > best_match['val']:
-                    best_match = {
-                        'val': max_val,
-                        'loc': max_loc,
-                        'w': resized_w,
-                        'h': resized_h
-                    }
+            resized_template = cv2.resize(template_gray, (resized_w, resized_h))
+            result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
             
-            if best_match and best_match['val'] >= confidence:
-                center_x = best_match['loc'][0] + best_match['w'] // 2
-                center_y = best_match['loc'][1] + best_match['h'] // 2
-                return pyautogui.Point(x=center_x, y=center_y)
-                
-            return None
+            if best_match is None or max_val > best_match['val']:
+                best_match = {
+                    'val': max_val,
+                    'loc': max_loc,
+                    'w': resized_w,
+                    'h': resized_h
+                }
+        
+        if best_match and best_match['val'] >= confidence:
+            center_x = best_match['loc'][0] + best_match['w'] // 2
+            center_y = best_match['loc'][1] + best_match['h'] // 2
+            return pyautogui.Point(x=center_x, y=center_y)
             
-    except Exception as e:
-        print(f"Error en SearchImage: {e}")
+        return None
+        
+    except Exception:
         return None
 
 def Menu():
@@ -190,11 +159,11 @@ def AcceptGame(image_filename):
             click_y = AcceptButton.y
             
             if image_name.upper() == "LOL":
-                offset_x = 40  
-                offset_y = 0
-                click_x += offset_x
-                click_y += offset_y
+                click_x += 40
                 print(f"Referencia LoL detectada. Click en: X={click_x}, Y={click_y}")
+            elif image_name.upper() == "CS2":
+                click_x += 70
+                print(f"Borde de CS2 detectado. Click en: X={click_x}, Y={click_y}")
             else:
                 print(f"Botón detectado en: X={click_x}, Y={click_y}")
             
