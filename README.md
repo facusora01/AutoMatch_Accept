@@ -40,8 +40,7 @@ It uses computer vision and image recognition to eliminate false positives. It i
 * **Multi-Game Support:** Configured for CS2 and LoL out of the box, but easily expandable to other titles.
 * **Interactive Menu:** Choose the specific game before monitoring to avoid conflicts between similar UI colors/images.
 * **Image-Based Recognition:** Relies on OpenCV template matching rather than basic pixel colors. It works on any client language, as long as the "Accept" button screenshot matches your game.
-* **Safety Hotkeys:** Press `ESC` or the ``` ` 
-``` (backtick) key at any time to safely stop the background script.
+* **Safety Hotkeys:** Press `ESC` at any time to safely stop the background script.
 
 ---
 
@@ -58,8 +57,8 @@ Download or clone the project files to your local machine.
 
 **2. Setup the Images directory**
 Ensure your folder structure is correct:
-* `Images/cs2.png`
-* `Images/lol.png`
+* `Images/CS2/CS2.png`
+* `Images/LoL/LoL.png`
 * `Images/icon/icon.ico` (Application icon)
 
 **3. Install dependencies**
@@ -75,19 +74,7 @@ python AcceptGame.py
 ```
 
 **5. Select your game**
-The console will display a menu. Type `1` for CS2, `2` for LoL, or `0` to exit. Press Enter and let the script run in the background.
+The console will display a menu. Type `1` for CS2, `2` for LoL, `3` to change the wait time, or `0` to exit. Press Enter and let the script run in the background.
 
----
+The wait time configuration is saved automatically in AppData and persists between sessions.
 
-## Compilation (Standalone Executable)
-
-This project includes `pyinstaller` in its dependencies, allowing you to compile the script into a standalone `.exe` file.
-
-To compile and include the icon in the executable, use the following command:
-```bash
-pyinstaller --onefile --icon=Images/icon/icon.ico AcceptGame.py
-```
-
-> **Note:** After compilation, make sure to copy your `Images` folder into the same directory where your newly generated executable is located so the program can find the button images.
-
-Or you can just use the [latest release](https://github.com/facusora01/LoLAcceptButton/releases/latest).
