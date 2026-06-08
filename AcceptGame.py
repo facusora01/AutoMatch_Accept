@@ -56,15 +56,18 @@ def Capture():
 def SearchImage(Screenshot, image_path, confidence=0.85):
     try:
         screenshot_np = np.array(Screenshot)
-        screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
-        screen_h, screen_w = screenshot_gray.shape[:2]
+
+        screenshot_bgr = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
+        screen_h, screen_w = screenshot_bgr.shape[:2]
         
-        template_gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         
-        if template_gray is None:
+        template_color = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        
+        if template_color is None:
             return None
         
-        h, w = template_gray.shape
+        
+        h, w = template_color.shape[:2] 
         best_match = None
         
         for scale in np.linspace(0.8, 1.2, 9):
@@ -74,8 +77,11 @@ def SearchImage(Screenshot, image_path, confidence=0.85):
             if resized_h > screen_h or resized_w > screen_w:
                 continue
                 
-            resized_template = cv2.resize(template_gray, (resized_w, resized_h))
-            result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
+            # Redimensionamos la imagen a color
+            resized_template = cv2.resize(template_color, (resized_w, resized_h))
+            
+            # 4. Hacemos el matchTemplate usando BGR contra BGR
+            result = cv2.matchTemplate(screenshot_bgr, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
             
             if best_match is None or max_val > best_match['val']:
@@ -158,14 +164,8 @@ def AcceptGame(image_filename):
             click_x = AcceptButton.x
             click_y = AcceptButton.y
             
-            if image_name.upper() == "LOL":
-                click_x += 40
-                print(f"Referencia LoL detectada. Click en: X={click_x}, Y={click_y}")
-            elif image_name.upper() == "CS2":
-                click_x += 70
-                print(f"Borde de CS2 detectado. Click en: X={click_x}, Y={click_y}")
-            else:
-                print(f"Botón detectado en: X={click_x}, Y={click_y}")
+            click_x += 70
+            print(f"Botón detectado en: X={click_x}, Y={click_y}")
             
             pyautogui.click(x=click_x, y=click_y)
             print(f"Partida Aceptada. Esperando {timeSleep} segundos...")
