@@ -1,3 +1,4 @@
+# AutoMatch Accept - made by facusora01
 import pyautogui
 import os
 import cv2
@@ -77,10 +78,8 @@ def SearchImage(Screenshot, image_path, confidence=0.85):
             if resized_h > screen_h or resized_w > screen_w:
                 continue
                 
-            # Redimensionamos la imagen a color
             resized_template = cv2.resize(template_color, (resized_w, resized_h))
             
-            # 4. Hacemos el matchTemplate usando BGR contra BGR
             result = cv2.matchTemplate(screenshot_bgr, resized_template, cv2.TM_CCOEFF_NORMED)
             _, max_val, _, max_loc = cv2.minMaxLoc(result)
             
@@ -106,6 +105,7 @@ def Menu():
     global timeSleep
     while True:
         print("\n=== Auto Accept Game ===")
+        print("       made by facusora01")
         print("1. Counter-Strike 2 (CS2)")
         print("2. League of Legends (LoL)")
         print("3. FACEIT")
@@ -120,7 +120,7 @@ def Menu():
         elif opcion == '2':
             return ("LoL/LoL.png", 70)
         elif opcion == '3':
-            return ("CS2/FACEIT.png", 0)
+            return ("CS2/FACEIT.png", 15)
         elif opcion == '4':
             try:
                 nuevo_tiempo = int(input("Ingresa el nuevo tiempo de espera en segundos: "))
