@@ -108,17 +108,20 @@ def Menu():
         print("\n=== Auto Accept Game ===")
         print("1. Counter-Strike 2 (CS2)")
         print("2. League of Legends (LoL)")
-        print(f"3. Cambiar tiempo de espera (Actual: {timeSleep}s)")
+        print("3. FACEIT")
+        print(f"4. Cambiar tiempo de espera (Actual: {timeSleep}s)")
         print("0. Salir")
         print("========================")
-        
-        opcion = input("Elige una opción (1, 2, 3 o 0): ")
-        
+
+        opcion = input("Elige una opción (1, 2, 3, 4 o 0): ")
+
         if opcion == '1':
-            return "CS2/CS2.png"
+            return ("CS2/CS2.png", 70)
         elif opcion == '2':
-            return "LoL/LoL.png"
+            return ("LoL/LoL.png", 70)
         elif opcion == '3':
+            return ("CS2/FACEIT.png", 0)
+        elif opcion == '4':
             try:
                 nuevo_tiempo = int(input("Ingresa el nuevo tiempo de espera en segundos: "))
                 if nuevo_tiempo > 0:
@@ -134,7 +137,7 @@ def Menu():
         else:
             print("Opción inválida.")
 
-def AcceptGame(image_filename):
+def AcceptGame(image_filename, click_offset_x=0):
     global running
     running = True
 
@@ -164,7 +167,7 @@ def AcceptGame(image_filename):
             click_x = AcceptButton.x
             click_y = AcceptButton.y
             
-            click_x += 70
+            click_x += click_offset_x
             print(f"Botón detectado en: X={click_x}, Y={click_y}")
             
             pyautogui.click(x=click_x, y=click_y)
@@ -177,9 +180,10 @@ def AcceptGame(image_filename):
                 
 def main():
     while True:
-        selected_image = Menu()
-        if selected_image:
-            AcceptGame(selected_image)
+        selection = Menu()
+        if selection:
+            image_filename, click_offset_x = selection
+            AcceptGame(image_filename, click_offset_x)
         else:
             print("Saliendo...")
             break
