@@ -109,19 +109,25 @@ def Menu():
         print("1. Counter-Strike 2 (CS2)")
         print("2. League of Legends (LoL)")
         print("3. FACEIT")
-        print(f"4. Cambiar tiempo de espera (Actual: {timeSleep}s)")
+        print("4. Claude")
+        print(f"5. Cambiar tiempo de espera (Actual: {timeSleep}s)")
         print("0. Salir")
         print("========================")
 
-        opcion = input("Elige una opción (1, 2, 3, 4 o 0): ")
+        opcion = input("Elige una opción (1, 2, 3, 4, 5 o 0): ")
 
         if opcion == '1':
-            return ("CS2/CS2.png", 70)
+            return ("CS2/CS2.png", 70, "click", None)
         elif opcion == '2':
-            return ("LoL/LoL.png", 70)
+            return ("LoL/LoL.png", 70, "click", None)
         elif opcion == '3':
-            return ("CS2/FACEIT.png", 15)
+            return ("CS2/FACEIT.png", 15, "click", None)
         elif opcion == '4':
+            print("\n[AVISO] Acepta automaticamente los permisos de Claude Code.")
+            print("Incluye comandos destructivos (borrar archivos, git push --force).")
+            print("Usalo solo mientras mires la pantalla.\n")
+            return ("Claude/Claude.png", 0, "enter", 1)
+        elif opcion == '5':
             try:
                 nuevo_tiempo = int(input("Ingresa el nuevo tiempo de espera en segundos: "))
                 if nuevo_tiempo > 0:
@@ -137,9 +143,11 @@ def Menu():
         else:
             print("Opción inválida.")
 
-def AcceptGame(image_filename, click_offset_x=0):
+def AcceptGame(image_filename, click_offset_x=0, action="click", cooldown=None):
     global running
     running = True
+
+    espera = cooldown if cooldown else timeSleep
 
     keyboard.add_hotkey('esc', stop_program)
 
@@ -152,7 +160,7 @@ def AcceptGame(image_filename, click_offset_x=0):
     image_name = os.path.splitext(os.path.basename(image_path))[0]
     
     print(f"\nBuscando referencia para {image_name}...")
-    print(f"Configurado con {timeSleep}s de espera.")
+    print(f"Configurado con {espera}s de espera.")
     print("Presiona ESC para detener\n")
     
     while running:
@@ -166,14 +174,19 @@ def AcceptGame(image_filename, click_offset_x=0):
         if AcceptButton:
             click_x = AcceptButton.x
             click_y = AcceptButton.y
-            
+
             click_x += click_offset_x
             print(f"Botón detectado en: X={click_x}, Y={click_y}")
-            
-            pyautogui.click(x=click_x, y=click_y)
-            print(f"Partida Aceptada. Esperando {timeSleep} segundos...")
-            
-            for _ in range(timeSleep):
+
+            if action == "enter":
+                pyautogui.click(x=click_x, y=click_y)
+                time.sleep(0.1)
+                pyautogui.press('enter')
+            else:
+                pyautogui.click(x=click_x, y=click_y)
+            print(f"Aceptado. Esperando {espera} segundos...")
+
+            for _ in range(espera):
                 if not running:
                     break
                 time.sleep(1)
@@ -182,8 +195,8 @@ def main():
     while True:
         selection = Menu()
         if selection:
-            image_filename, click_offset_x = selection
-            AcceptGame(image_filename, click_offset_x)
+            image_filename, click_offset_x, action, cooldown = selection
+            AcceptGame(image_filename, click_offset_x, action, cooldown)
         else:
             print("Saliendo...")
             break
